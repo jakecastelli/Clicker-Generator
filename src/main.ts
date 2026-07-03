@@ -48,6 +48,7 @@ const store = createStore<UiState>({
   topThickness: 1.5,
   imageDepth: 0.8,
   tolerance: 0.4,
+  switchClearance: 0.1,
   smoothing: 0.1,
   keychain: false,
   removeBg: true,
@@ -143,6 +144,10 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
   },
   onTolerance: (mm) => {
     store.set({ tolerance: mm });
+    debouncedRebuild();
+  },
+  onSwitchClearance: (mm) => {
+    store.set({ switchClearance: mm });
     debouncedRebuild();
   },
   onKeychain: (on) => {
@@ -321,7 +326,7 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
 const HISTORY_FIELDS = [
   'palette', 'paletteOverrides', 'partOverrides', 'bodyColorRgb', 'baseColorOverride',
   'componentHeights', 'edgeSettings', 'baseShape', 'capWidthMm', 'topThickness',
-  'imageDepth', 'tolerance', 'keychain',
+  'imageDepth', 'tolerance', 'switchClearance', 'keychain',
 ] as const;
 let history: string[] = [];
 let histIndex = -1;
@@ -835,6 +840,7 @@ function rebuild(quiet = false) {
     borderWidth: isText ? 3.5 : 2.6,
     capProud: 4.0,
     tolerance: s.tolerance,
+    switchClearance: s.switchClearance,
     colorBleed: 0.12,
     stepHeight: 0.6,
     travel: 4.0,
@@ -1005,6 +1011,7 @@ function saveProject() {
       topThickness: s.topThickness,
       imageDepth: s.imageDepth,
       tolerance: s.tolerance,
+      switchClearance: s.switchClearance,
       smoothing: s.smoothing,
       removeBg: s.removeBg,
       importMode: s.importMode,
@@ -1055,6 +1062,7 @@ async function loadProject(file: File) {
       topThickness: set.topThickness ?? store.get().topThickness,
       imageDepth: set.imageDepth ?? store.get().imageDepth,
       tolerance: set.tolerance ?? store.get().tolerance,
+      switchClearance: set.switchClearance ?? store.get().switchClearance,
       smoothing: set.smoothing ?? store.get().smoothing,
       removeBg: set.removeBg ?? store.get().removeBg,
       currentIconName: currentIconName || 'circle',

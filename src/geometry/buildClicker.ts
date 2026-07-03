@@ -516,6 +516,19 @@ export function buildClicker(
   //     gap). The socket is cut into the well floor (= plate plane) to grip the switch. ---
   const bodyBlock = extrudeAt(bodyFootprint, bodyTopZ - bodyBottomZ, bodyBottomZ);
   const well = extrudeAt(wellFootprint, bodyTopZ - wellFloorZ + 1, wellFloorZ);
+  const switchClearance = Math.max(0, params.switchClearance ?? 0);
+  let socketCut: Solid = socket;
+  if (switchClearance > 0.001) {
+    const w = socketBB.max[0] - socketBB.min[0];
+    const h = socketBB.max[1] - socketBB.min[1];
+    const cx = (socketBB.min[0] + socketBB.max[0]) / 2;
+    const cy = (socketBB.min[1] + socketBB.max[1]) / 2;
+    const sx = w > 0.001 ? (w + 2 * switchClearance) / w : 1;
+    const sy = h > 0.001 ? (h + 2 * switchClearance) / h : 1;
+    socketCut = track(
+      track(track(socket.translate([-cx, -cy, 0])).scale([sx, sy, 1])).translate([cx, cy, 0]),
+    );
+  }
   let body: Solid = bodyBlock;
 
   // Apply edge modifications (fillet / chamfer) to the body block first,
@@ -549,7 +562,7 @@ export function buildClicker(
   }
 
   // Subtract the well and socket afterwards to ensure the interior cavity is clean
-  body = track(track(body.subtract(well)).subtract(socket));
+  body = track(track(body.subtract(well)).subtract(socketCut));
 
   if (!body.isEmpty()) {
     parts.push(toPart(body, 'body', 'base', params.bodyColorRgb, 'base-body'));

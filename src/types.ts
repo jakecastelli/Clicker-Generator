@@ -101,6 +101,7 @@ export interface BuildParams {
   borderWidth: number; // raised body border around the cap (the bezel wall)
   capProud: number; // how far the cap top sticks up above the body border at rest (≈ travel → flush when pressed)
   tolerance: number; // slip-fit gap between cap outer wall and body well wall
+  switchClearance: number; // XY clearance added to the MX switch socket cutout
   colorBleed: number; // tiny outward grow on each color so neighbors never leave a gap
   stepHeight: number; // mm per height level for raised color relief
   travel: number; // switch press travel the well must clear (~3.5–4 mm)
