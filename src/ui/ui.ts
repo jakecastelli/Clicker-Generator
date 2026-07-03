@@ -21,6 +21,7 @@ export interface UiState {
   topThickness: number;
   imageDepth: number;
   tolerance: number;
+  switchClearance: number;
   smoothing: number;
   keychain: boolean;
   removeBg: boolean;
@@ -63,6 +64,7 @@ export interface UiCallbacks {
   onTopThickness(mm: number): void;
   onImageDepth(mm: number): void;
   onTolerance(mm: number): void;
+  onSwitchClearance(mm: number): void;
   onKeychain(on: boolean): void;
   onRemoveBg(on: boolean): void;
   onView(mode: ViewMode): void;
@@ -294,10 +296,17 @@ export function createUi(
         </div>
         <div class="prow-stacked">
           <div class="prow-header">
-            <label for="tol">Fit tolerance ${tip('Clearance around the MX switch socket so the cap fits without being too tight or too loose, in mm.')}</label>
+            <label for="tol">Cap fit tolerance ${tip('Clearance between the cap and the body well, in mm. Increase this if the cap binds against the body.')}</label>
             <input type="text" class="val" id="tolVal" />
           </div>
           <input type="range" id="tol" min="0.2" max="0.8" step="0.05" />
+        </div>
+        <div class="prow-stacked">
+          <div class="prow-header">
+            <label for="switchclear">Switch clearance ${tip('Extra XY clearance added to the MX switch socket cutout, in mm. Increase this if the switch body is tight or deforms when pressed.')}</label>
+            <input type="text" class="val" id="switchclearVal" />
+          </div>
+          <input type="range" id="switchclear" min="0" max="0.5" step="0.05" />
         </div>
         </div>
       </details>
@@ -844,6 +853,8 @@ export function createUi(
   imgdepth.addEventListener('input', () => cb.onImageDepth(+imgdepth.value));
   const tol = $<HTMLInputElement>('tol');
   tol.addEventListener('input', () => cb.onTolerance(+tol.value));
+  const switchclear = $<HTMLInputElement>('switchclear');
+  switchclear.addEventListener('input', () => cb.onSwitchClearance(+switchclear.value));
   const keychain = $<HTMLInputElement>('keychain');
   keychain.addEventListener('change', () => cb.onKeychain(keychain.checked));
 
@@ -895,6 +906,7 @@ export function createUi(
   bindValInput('topthickVal', topthick, cb.onTopThickness);
   bindValInput('imgdepthVal', imgdepth, cb.onImageDepth);
   bindValInput('tolVal', tol, cb.onTolerance);
+  bindValInput('switchclearVal', switchclear, cb.onSwitchClearance);
 
   // --- View tabs ---
   const viewTabs = $('viewTabs');
@@ -1094,7 +1106,7 @@ export function createUi(
       focus: 'left',
       target: '#geometrySettingsContainer',
       title: 'Geometry & Style Settings',
-      text: 'Expand Section 1 to pick colors and adjust smoothing. Expand Section 2 to add a keychain loop, change thicknesses, and adjust fit tolerances.',
+      text: 'Expand Section 1 to pick colors and adjust smoothing. Expand Section 2 to add a keychain loop, change thicknesses, and adjust fit clearances.',
       arrow: 'left'
     },
     {
@@ -1473,6 +1485,8 @@ export function createUi(
     setVal('imgdepthVal', state.imageDepth.toFixed(1) + ' mm');
     tol.value = String(state.tolerance);
     setVal('tolVal', state.tolerance.toFixed(2) + ' mm');
+    switchclear.value = String(state.switchClearance);
+    setVal('switchclearVal', state.switchClearance.toFixed(2) + ' mm');
     keychain.checked = state.keychain;
     $<HTMLInputElement>('removebg').checked = state.removeBg;
     $<HTMLInputElement>('showswitch').checked = state.showSwitch;
