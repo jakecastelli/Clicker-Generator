@@ -48,8 +48,10 @@ const store = createStore<UiState>({
   topThickness: 1.5,
   imageDepth: 0.8,
   tolerance: 0.4,
+  switchClearance: 0.1,
   smoothing: 0.1,
   keychain: false,
+  keychainLoopSizeMm: 10,
   removeBg: true,
   view: 'exploded',
   showSwitch: true,
@@ -81,6 +83,7 @@ let regionSet: RegionSet | null = null;
 let latestParts: ClickerPart[] = [];
 let assetsReady = false;
 let defaultClickerLoaded = false;
+let pendingDefaultRebuild = false;
 
 // Vector states
 let currentSvgText = '';
@@ -145,8 +148,16 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
     store.set({ tolerance: mm });
     debouncedRebuild();
   },
+  onSwitchClearance: (mm) => {
+    store.set({ switchClearance: mm });
+    debouncedRebuild();
+  },
   onKeychain: (on) => {
     store.set({ keychain: on });
+    debouncedRebuild();
+  },
+  onKeychainLoopSize: (mm) => {
+    store.set({ keychainLoopSizeMm: mm });
     debouncedRebuild();
   },
   onSmoothing: (v) => {
@@ -321,7 +332,7 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
 const HISTORY_FIELDS = [
   'palette', 'paletteOverrides', 'partOverrides', 'bodyColorRgb', 'baseColorOverride',
   'componentHeights', 'edgeSettings', 'baseShape', 'capWidthMm', 'topThickness',
-  'imageDepth', 'tolerance', 'keychain',
+  'imageDepth', 'tolerance', 'switchClearance', 'keychain', 'keychainLoopSizeMm',
 ] as const;
 let history: string[] = [];
 let histIndex = -1;
@@ -415,7 +426,9 @@ ui.update(store.get());
 // Load Vostok Labs logo sample on startup
 SAMPLES[0].load().then((img) => {
   originalImage = img;
-  if (assetsReady && !defaultClickerLoaded) {
+  if (assetsReady && (!defaultClickerLoaded || pendingDefaultRebuild)) {
+    pendingDefaultRebuild = false;
+    defaultClickerLoaded = false;
     reprocess();
   }
 }).catch((err) => {
@@ -795,7 +808,19 @@ function reprocess() {
 }
 
 function rebuild(quiet = false) {
-  if (!regionSet || regionSet.regions.length === 0) return;
+  if (!regionSet || regionSet.regions.length === 0) {
+    const s = store.get();
+    if (defaultClickerLoaded && s.importMode === 'image') {
+      if (originalImage) {
+        defaultClickerLoaded = false;
+        reprocess();
+      } else {
+        pendingDefaultRebuild = true;
+        store.set({ status: 'Preparing editable default clicker…' });
+      }
+    }
+    return;
+  }
   if (!assetsReady) {
     store.set({ status: 'Waiting for switch assets…' });
     return;
@@ -835,11 +860,13 @@ function rebuild(quiet = false) {
     borderWidth: isText ? 3.5 : 2.6,
     capProud: 4.0,
     tolerance: s.tolerance,
+    switchClearance: s.switchClearance,
     colorBleed: 0.12,
     stepHeight: 0.6,
     travel: 4.0,
     floorThickness: 1.6,
     keychainHole: s.keychain,
+    keychainLoopSizeMm: s.keychainLoopSizeMm,
     baseFilamentRgb: capBaseColor,
     bodyColorRgb: s.bodyColorRgb ?? ([120, 124, 130] as RGB),
     edgeSettings: s.edgeSettings,
@@ -1005,7 +1032,10 @@ function saveProject() {
       topThickness: s.topThickness,
       imageDepth: s.imageDepth,
       tolerance: s.tolerance,
+      switchClearance: s.switchClearance,
       smoothing: s.smoothing,
+      keychain: s.keychain,
+      keychainLoopSizeMm: s.keychainLoopSizeMm,
       removeBg: s.removeBg,
       importMode: s.importMode,
       currentText,
@@ -1046,6 +1076,7 @@ async function loadProject(file: File) {
     if (currentSvgText && currentSvgName) {
       ui.addUploadedSvg(currentSvgText, currentSvgName);
     }
+    const loadedKeychainLoopSizeMm = Number(set.keychainLoopSizeMm);
 
     store.set({
       importMode: set.importMode ?? 'image',
@@ -1055,7 +1086,12 @@ async function loadProject(file: File) {
       topThickness: set.topThickness ?? store.get().topThickness,
       imageDepth: set.imageDepth ?? store.get().imageDepth,
       tolerance: set.tolerance ?? store.get().tolerance,
+      switchClearance: set.switchClearance ?? store.get().switchClearance,
       smoothing: set.smoothing ?? store.get().smoothing,
+      keychain: set.keychain ?? store.get().keychain,
+      keychainLoopSizeMm: Number.isFinite(loadedKeychainLoopSizeMm)
+        ? Math.max(6, Math.min(12, loadedKeychainLoopSizeMm))
+        : store.get().keychainLoopSizeMm,
       removeBg: set.removeBg ?? store.get().removeBg,
       currentIconName: currentIconName || 'circle',
       colorMode: set.colorMode ?? 'normal',
