@@ -24,6 +24,7 @@ export interface UiState {
   switchClearance: number;
   smoothing: number;
   keychain: boolean;
+  keychainLoopSizeMm: number;
   removeBg: boolean;
   view: ViewMode;
   showSwitch: boolean;
@@ -66,6 +67,7 @@ export interface UiCallbacks {
   onTolerance(mm: number): void;
   onSwitchClearance(mm: number): void;
   onKeychain(on: boolean): void;
+  onKeychainLoopSize(mm: number): void;
   onRemoveBg(on: boolean): void;
   onView(mode: ViewMode): void;
   onShowSwitch(on: boolean): void;
@@ -248,6 +250,13 @@ export function createUi(
         <div class="switch-row" style="margin-bottom: 16px;">
           <span class="switch-label">Keychain loop ${tip('Adds a small loop to the body so you can attach the clicker to a keychain.')}</span>
           <label class="toggle"><input id="keychain" type="checkbox" /><span class="slider"></span></label>
+        </div>
+        <div class="prow-stacked" id="keychainLoopSizeField">
+          <div class="prow-header">
+            <label for="keychainLoopSize">Loop size ${tip('Adjusts only the existing keychain loop outer diameter. The body, cap, switch cutout, and image parts stay unchanged.')}</label>
+            <input type="text" class="val" id="keychainLoopSizeVal" />
+          </div>
+          <input type="range" id="keychainLoopSize" min="6" max="12" step="0.5" />
         </div>
 
         <div class="global-edges" id="globalEdges" style="display:none; margin-bottom: 16px;">
@@ -857,6 +866,8 @@ export function createUi(
   switchclear.addEventListener('input', () => cb.onSwitchClearance(+switchclear.value));
   const keychain = $<HTMLInputElement>('keychain');
   keychain.addEventListener('change', () => cb.onKeychain(keychain.checked));
+  const keychainLoopSize = $<HTMLInputElement>('keychainLoopSize');
+  keychainLoopSize.addEventListener('input', () => cb.onKeychainLoopSize(+keychainLoopSize.value));
 
   // --- Global edges (Shape & Size): cap-top + clicker-base fillet/chamfer ---
   const globalEdges = $('globalEdges');
@@ -907,6 +918,7 @@ export function createUi(
   bindValInput('imgdepthVal', imgdepth, cb.onImageDepth);
   bindValInput('tolVal', tol, cb.onTolerance);
   bindValInput('switchclearVal', switchclear, cb.onSwitchClearance);
+  bindValInput('keychainLoopSizeVal', keychainLoopSize, cb.onKeychainLoopSize);
 
   // --- View tabs ---
   const viewTabs = $('viewTabs');
@@ -1488,6 +1500,12 @@ export function createUi(
     switchclear.value = String(state.switchClearance);
     setVal('switchclearVal', state.switchClearance.toFixed(2) + ' mm');
     keychain.checked = state.keychain;
+    keychainLoopSize.value = String(state.keychainLoopSizeMm);
+    setVal('keychainLoopSizeVal', state.keychainLoopSizeMm.toFixed(1) + ' mm');
+    keychainLoopSize.disabled = !state.keychain;
+    const keychainLoopSizeVal = $<HTMLInputElement>('keychainLoopSizeVal');
+    keychainLoopSizeVal.disabled = !state.keychain;
+    $('keychainLoopSizeField').classList.toggle('is-disabled', !state.keychain);
     $<HTMLInputElement>('removebg').checked = state.removeBg;
     $<HTMLInputElement>('showswitch').checked = state.showSwitch;
 

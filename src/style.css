@@ -281,6 +281,12 @@ details.section-collapsible[open] > summary { padding-bottom: 14px; }
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
 }
+.prow-stacked.is-disabled {
+  opacity: 0.45;
+}
+.prow-stacked.is-disabled input {
+  cursor: not-allowed;
+}
 
 /* Legacy prow kept for any remaining uses */
 .prow {

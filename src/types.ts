@@ -107,6 +107,7 @@ export interface BuildParams {
   travel: number; // switch press travel the well must clear (~3.5–4 mm)
   floorThickness: number;
   keychainHole: boolean; // add a keyring loop on the body (+Y edge)
+  keychainLoopSizeMm: number; // outer diameter of the keyring loop
   baseFilamentRgb: RGB; // cap backing + stem color
   bodyColorRgb: RGB;
   /** Component-specific height levels (partName -> level integer) */

@@ -539,8 +539,9 @@ export function buildClicker(
   // Optional keychain loop: a disc tab on the +Y edge with a ring hole through it.
   if (params.keychainHole) {
     const bb = bodyFootprint.bounds();
-    const loopR = 5.0;
-    const holeR = 2.6;
+    const requestedLoopSize = Number.isFinite(params.keychainLoopSizeMm) ? params.keychainLoopSizeMm : 10;
+    const loopR = Math.max(6, Math.min(12, requestedLoopSize)) / 2;
+    const holeR = loopR * (2.6 / 5.0);
     const cy = bb.max[1] + loopR * 0.35; // overlaps the body so it fuses
     const th = Math.max(2.5, Math.min(4.0, (bodyTopZ - bodyBottomZ) * 0.35));
     const zb = bodyBottomZ;
