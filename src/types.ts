@@ -62,6 +62,27 @@ export interface EdgeSetting {
 
 export type CropRatio = 'free' | '1:1' | '4:3' | '3:2' | '16:9';
 
+/** One MX switch placement on the design. x/y in mm from centre, rotation in degrees. */
+export interface SwitchPlacement {
+  x: number;
+  y: number;
+  rotation: number;
+}
+
+/** Keychain attachment settings. */
+export interface KeychainParams {
+  enabled: boolean;
+  /** 'loop' = outer tab with a ring hole; 'hole' = ring hole cut through the body. */
+  style: 'loop' | 'hole';
+  /** Position around the body edge, degrees. 90 = +Y (top), counter-clockwise. */
+  angleDeg: number;
+  /** Ring hole diameter, mm. Default 5.2. */
+  holeDiameterMm: number;
+  /** Lateral offset along the body edge tangent, mm. Positive = counter-clockwise
+   *  shift from the angle-derived anchor, negative = clockwise. Default 0. */
+  offsetMm: number;
+}
+
 /** Bambu-style image preprocessing. Adjustment values are multipliers, 1 = neutral. */
 export interface PreprocessParams {
   cropRatio: CropRatio;
@@ -101,18 +122,28 @@ export interface BuildParams {
   borderWidth: number; // raised body border around the cap (the bezel wall)
   capProud: number; // how far the cap top sticks up above the body border at rest (≈ travel → flush when pressed)
   tolerance: number; // slip-fit gap between cap outer wall and body well wall
-  switchClearance: number; // XY clearance added to the MX switch socket cutout
+  switchClearance: number; // XY clearance added to each MX switch body cutout
+  /** XY scale offset (mm) applied to the cap's keycap-mount stem so it fits the MX
+   *  switch: +looser (opens the cross socket, easier to press on), −tighter. 0 = as
+   *  authored. Only the XY footprint scales — Z is kept so the cap rest height is fixed. */
+  stemTolerance: number;
   colorBleed: number; // tiny outward grow on each color so neighbors never leave a gap
   stepHeight: number; // mm per height level for raised color relief
   travel: number; // switch press travel the well must clear (~3.5–4 mm)
   floorThickness: number;
-  keychainHole: boolean; // add a keyring loop on the body (+Y edge)
+  /** MX switch placements (1..3). Each is nudged off the design centre and rotated so
+   *  the switch sits under solid material; the worker clamps each to the cap footprint
+   *  and enforces a minimum centre-to-centre pitch, reporting the applied array back. */
+  switches: SwitchPlacement[];
+  keychain: KeychainParams; // keyring attachment (loop tab or inside hole) on the body
   baseFilamentRgb: RGB; // cap backing + stem color
   bodyColorRgb: RGB;
   /** Component-specific height levels (partName -> level integer) */
   componentHeights: Record<string, number>;
   /** Edge modifications (fillet / chamfer) for body and cap edges. */
   edgeSettings: EdgeSetting[];
+  /** Global toggle: chamfer the top edge of every raised (extruded) color part. */
+  extrudeChamfer: boolean;
 }
 
 /** Mesh payload (transferable). First 3 of each `numProp` stride are x,y,z. */
@@ -158,5 +189,9 @@ export type GeometryResponse =
   // `switchMesh` is the real MX switch, placed in the assembly frame for the preview
   // toggle (display only — never exported).
   | { type: 'initDone'; socketInfo: string; stemInfo: string; switchInfo: string; switchMesh: MeshData }
-  | { type: 'parts'; parts: ClickerPart[] }
+  // `switchPlacements` are the placements actually applied (after clamping to the cap
+  // footprint + min-pitch spacing), so the preview switch meshes match the geometry.
+  // `warnings` surfaces non-fatal build notes (e.g. switches pulled together, no room
+  // for the keychain hole) for the status line.
+  | { type: 'parts'; parts: ClickerPart[]; switchPlacements: SwitchPlacement[]; warnings: string[] }
   | { type: 'error'; message: string };

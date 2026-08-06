@@ -19,6 +19,7 @@ import type {
   PaletteEntry,
   RegionSet,
   RGB,
+  SwitchPlacement,
 } from './types';
 import { FILAMENTS } from './types';
 
@@ -36,6 +37,17 @@ const assetsPromise = Promise.all([
 /** Which editable color a clicked model part maps back to. */
 type ColorTarget = { kind: 'region'; index: number; compIndex: number } | { kind: 'body' } | { kind: 'base' };
 
+/** Symmetric default placement layout for 1..3 switches, spread across the cap width. */
+function defaultSwitchLayout(n: number, capWidthMm: number): SwitchPlacement[] {
+  if (n <= 1) return [{ x: 0, y: 0, rotation: 0 }];
+  if (n === 2) {
+    const x = Math.max(9, capWidthMm / 4);
+    return [{ x: -x, y: 0, rotation: 0 }, { x, y: 0, rotation: 0 }];
+  }
+  const p = Math.max(17, capWidthMm / 3);
+  return [{ x: -p, y: 0, rotation: 0 }, { x: 0, y: 0, rotation: 0 }, { x: p, y: 0, rotation: 0 }];
+}
+
 // ---- State (UI-facing) ----
 const store = createStore<UiState>({
   status: 'Loading switch assets…',
@@ -49,8 +61,11 @@ const store = createStore<UiState>({
   imageDepth: 0.8,
   tolerance: 0.4,
   switchClearance: 0.1,
+  stemTolerance: 0,
+  switches: [{ x: 0, y: 0, rotation: 0 }],
+  activeSwitchIndex: 0,
   smoothing: 0.1,
-  keychain: false,
+  keychain: { enabled: false, style: 'loop', angleDeg: 90, holeDiameterMm: 5.2, offsetMm: 0 },
   removeBg: true,
   view: 'exploded',
   showSwitch: true,
@@ -68,6 +83,8 @@ const store = createStore<UiState>({
     // One control for the whole clicker base — bevels top + bottom body edges together.
     { target: 'clickerBase', style: 'chamfer', radius: 0.5 },
   ],
+  extrudeChamfer: false,
+  separateLetters: false,
   extrudeHeight: null,
   componentHeights: {},
   selectedParts: [],
@@ -150,8 +167,88 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
     store.set({ switchClearance: mm });
     debouncedRebuild();
   },
-  onKeychain: (on) => {
-    store.set({ keychain: on });
+  onStemTolStep: (delta) => {
+    // "Switch stem" fit = XY scale offset on the cap's keycap-mount stem (0.2 mm steps).
+    // + loosens (opens the cross socket), − tightens. 0 = as authored.
+    const next = Math.round(Math.max(-1.0, Math.min(1.0, store.get().stemTolerance + delta)) * 10) / 10;
+    store.set({ stemTolerance: next });
+    debouncedRebuild();
+  },
+  onSwitchNudge: (dx, dy) => {
+    // Move only the active switch. Bound the requested offset; the worker does the
+    // precise clamp to the cap footprint + min-pitch and reports the applied
+    // placements back (moving the preview switches).
+    const LIMIT = 15;
+    const clamp = (v: number) => Math.max(-LIMIT, Math.min(LIMIT, v));
+    const s = store.get();
+    const i = Math.min(s.activeSwitchIndex, s.switches.length - 1);
+    const switches = s.switches.map((sw, idx) =>
+      idx === i ? { ...sw, x: clamp(sw.x + dx), y: clamp(sw.y + dy) } : sw,
+    );
+    store.set({ switches });
+    debouncedRebuild();
+  },
+  onSwitchRotate: (deltaDeg) => {
+    // Rotate only the active switch a couple of degrees per press; clamp so the socket
+    // stays sensibly aligned with the design.
+    const s = store.get();
+    const i = Math.min(s.activeSwitchIndex, s.switches.length - 1);
+    const switches = s.switches.map((sw, idx) =>
+      idx === i ? { ...sw, rotation: Math.round(Math.max(-30, Math.min(30, sw.rotation + deltaDeg))) } : sw,
+    );
+    store.set({ switches });
+    debouncedRebuild();
+  },
+  onSwitchReset: () => {
+    // Recenter only the active switch to its default slot for the current count.
+    const s = store.get();
+    const layout = defaultSwitchLayout(s.switches.length, s.capWidthMm);
+    const i = Math.min(s.activeSwitchIndex, s.switches.length - 1);
+    const switches = s.switches.map((sw, idx) => (idx === i ? layout[idx] : sw));
+    store.set({ switches });
+    debouncedRebuild();
+  },
+  onSwitchCount: (n) => {
+    // Changing count replaces the whole array with the symmetric default layout
+    // (users re-tune after); keeps the logic simple and always well-spaced.
+    const s = store.get();
+    if (n === s.switches.length) return;
+    store.set({ switches: defaultSwitchLayout(n, s.capWidthMm), activeSwitchIndex: 0 });
+    debouncedRebuild();
+  },
+  onActiveSwitch: (i) => {
+    // Selection only — no rebuild.
+    store.set({ activeSwitchIndex: i });
+  },
+  onSwitchResetAll: () => {
+    const s = store.get();
+    store.set({
+      switches: defaultSwitchLayout(s.switches.length, s.capWidthMm),
+      activeSwitchIndex: 0,
+    });
+    debouncedRebuild();
+  },
+  onKeychainToggle: (on) => {
+    store.set({ keychain: { ...store.get().keychain, enabled: on } });
+    debouncedRebuild();
+  },
+
+  onKeychainRotate: (deltaDeg) => {
+    const kc = store.get().keychain;
+    const angleDeg = (((kc.angleDeg + deltaDeg) % 360) + 360) % 360;
+    store.set({ keychain: { ...kc, angleDeg } });
+    debouncedRebuild();
+  },
+  onKeychainSize: (deltaMm) => {
+    const kc = store.get().keychain;
+    const holeDiameterMm = Math.round(Math.max(3.0, Math.min(8.0, kc.holeDiameterMm + deltaMm)) * 10) / 10;
+    store.set({ keychain: { ...kc, holeDiameterMm } });
+    debouncedRebuild();
+  },
+  onKeychainOffset: (deltaMm) => {
+    const kc = store.get().keychain;
+    const offsetMm = Math.round(Math.max(-15.0, Math.min(15.0, (kc.offsetMm ?? 0) + deltaMm)) * 10) / 10;
+    store.set({ keychain: { ...kc, offsetMm } });
     debouncedRebuild();
   },
   onSmoothing: (v) => {
@@ -160,7 +257,9 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
   },
   onRemoveBg: (on) => {
     store.set({ removeBg: on });
-    if (store.get().importMode === 'image' && hasImage()) reprocess();
+    const mode = store.get().importMode;
+    if (mode === 'image' && hasImage()) reprocess();
+    else if (mode === 'svg' && currentSvgText) reprocess();
   },
   onView: (mode) => {
     store.set({ view: mode });
@@ -314,6 +413,20 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
       debouncedQuietRebuild();
     }
   },
+  onExtrudeChamfer: (on) => {
+    // Global, part-independent toggle: when on, every raised (extruded) color part
+    // gets a small beveled top edge. Not tied to the current selection — flip it once
+    // and all extruded parts pick up the chamfer (buildClicker applies it per part).
+    store.set({ extrudeChamfer: on });
+    debouncedQuietRebuild();
+  },
+  onSeparateLetters: (on) => {
+    // Text only: re-trace the word so letters are either merged into one element (off)
+    // or split into one selectable/colorable part per glyph (on). Clear the selection
+    // since the part names change with the grouping.
+    store.set({ separateLetters: on, selectedParts: [] });
+    reprocess();
+  },
   onUndo: () => undo(),
   onRedo: () => redo(),
   onRefresh: () => refreshDesign(),
@@ -325,8 +438,8 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
 // (reprocess) starts a fresh baseline. Restoring rebuilds the geometry.
 const HISTORY_FIELDS = [
   'palette', 'paletteOverrides', 'partOverrides', 'bodyColorRgb', 'baseColorOverride',
-  'componentHeights', 'edgeSettings', 'baseShape', 'capWidthMm', 'topThickness',
-  'imageDepth', 'tolerance', 'switchClearance', 'keychain',
+  'componentHeights', 'edgeSettings', 'extrudeChamfer', 'baseShape', 'capWidthMm', 'topThickness',
+  'imageDepth', 'tolerance', 'switchClearance', 'stemTolerance', 'switches', 'keychain',
 ] as const;
 let history: string[] = [];
 let histIndex = -1;
@@ -615,6 +728,8 @@ worker.onmessage = (e: MessageEvent<GeometryResponse>) => {
       latestParts = msg.parts;
       viewer.setParts(msg.parts, !pendingHistoryReset);
       viewer.setView(store.get().view);
+      // Seat one preview switch per (clamped) placement the geometry was built around.
+      viewer.setSwitchPlacements(msg.switchPlacements ?? []);
 
       // Extrude heights are baked into the geometry now — do NOT translate the
       // meshes too, or the raised part would float a second step above the model.
@@ -623,7 +738,8 @@ worker.onmessage = (e: MessageEvent<GeometryResponse>) => {
       store.set({
         building: false,
         hasParts: msg.parts.length > 0,
-        status: '', // Clear the banner when ready
+        // Surface any non-fatal build note (switches pinched, no keychain room) or clear.
+        status: msg.warnings && msg.warnings.length ? msg.warnings[0] : '',
       });
       isInitialLoad = false;
 
@@ -748,7 +864,7 @@ function reprocess() {
     }
     try {
       store.set({ building: true, status: 'Parsing SVG…' });
-      regionSet = parseSvg(currentSvgText);
+      regionSet = parseSvg(currentSvgText, { removeBg: s.removeBg });
     } catch (e: any) {
       store.set({ building: false, status: 'Error: ' + e.message });
       return;
@@ -776,7 +892,7 @@ function reprocess() {
   } else if (s.importMode === 'text') {
     try {
       store.set({ building: true, status: 'Generating Text…' });
-      regionSet = parseLetter(currentText, currentFontId, 15);
+      regionSet = parseLetter(currentText, currentFontId, 15, s.separateLetters);
     } catch (e: any) {
       store.set({ building: false, status: 'Error: ' + e.message });
       return;
@@ -841,14 +957,17 @@ function rebuild(quiet = false) {
     capProud: 4.0,
     tolerance: s.tolerance,
     switchClearance: s.switchClearance,
+    stemTolerance: s.stemTolerance,
     colorBleed: 0.12,
     stepHeight: 0.6,
     travel: 4.0,
     floorThickness: 1.6,
-    keychainHole: s.keychain,
+    switches: s.switches,
+    keychain: s.keychain,
     baseFilamentRgb: capBaseColor,
     bodyColorRgb: s.bodyColorRgb ?? ([120, 124, 130] as RGB),
     edgeSettings: s.edgeSettings,
+    extrudeChamfer: s.extrudeChamfer,
     componentHeights: s.componentHeights,
   };
 
@@ -1003,7 +1122,7 @@ function dataUrlToImage(url: string): Promise<RgbaImage> {
 function saveProject() {
   const s = store.get();
   const proj = {
-    version: 2,
+    version: 3,
     settings: {
       colorCount: s.colorCount,
       baseShape: s.baseShape,
@@ -1012,6 +1131,9 @@ function saveProject() {
       imageDepth: s.imageDepth,
       tolerance: s.tolerance,
       switchClearance: s.switchClearance,
+      stemTolerance: s.stemTolerance,
+      switches: s.switches,
+      keychain: s.keychain,
       smoothing: s.smoothing,
       removeBg: s.removeBg,
       importMode: s.importMode,
@@ -1028,6 +1150,8 @@ function saveProject() {
       baseColorOverride: s.baseColorOverride,
       partOverrides: s.partOverrides,
       edgeSettings: s.edgeSettings,
+      extrudeChamfer: s.extrudeChamfer,
+      separateLetters: s.separateLetters,
       componentHeights: s.componentHeights,
     },
     palette: s.palette, // filament mappings
@@ -1063,6 +1187,17 @@ async function loadProject(file: File) {
       imageDepth: set.imageDepth ?? store.get().imageDepth,
       tolerance: set.tolerance ?? store.get().tolerance,
       switchClearance: set.switchClearance ?? store.get().switchClearance,
+      stemTolerance: set.stemTolerance ?? 0,
+      // v3 stores `switches`; older (v2) projects carried scalar offsets — synthesize
+      // a single-switch array from them for back-compat.
+      switches: Array.isArray(set.switches) && set.switches.length
+        ? set.switches
+        : [{ x: set.switchOffsetX ?? 0, y: set.switchOffsetY ?? 0, rotation: set.switchRotation ?? 0 }],
+      activeSwitchIndex: 0,
+      // v3 stores a keychain object; older projects had a boolean (or nothing).
+      keychain: set.keychain && typeof set.keychain === 'object'
+        ? { offsetMm: 0, ...set.keychain }
+        : { enabled: set.keychain === true, style: 'loop', angleDeg: 90, holeDiameterMm: 5.2, offsetMm: 0 },
       smoothing: set.smoothing ?? store.get().smoothing,
       removeBg: set.removeBg ?? store.get().removeBg,
       currentIconName: currentIconName || 'circle',
@@ -1072,6 +1207,8 @@ async function loadProject(file: File) {
       paletteOverrides: set.paletteOverrides ?? [],
       partOverrides: set.partOverrides ?? {},
       edgeSettings: set.edgeSettings ?? store.get().edgeSettings,
+      extrudeChamfer: set.extrudeChamfer ?? false,
+      separateLetters: set.separateLetters ?? false,
       componentHeights: set.componentHeights ?? {},
     });
 
