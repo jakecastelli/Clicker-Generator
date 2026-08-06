@@ -375,7 +375,7 @@ export function buildClicker(
 
   // Stem fit: scale the keycap-mount stem in XY so its cross socket opens up (positive
   // = looser, easier to press onto the switch) or closes (negative = tighter grip).
-  // The offset is applied to the stem's footprint, so e.g. +0.2 grows it 0.2 mm across.
+  // The offset is applied to the stem's footprint, so e.g. +0.1 grows it 0.1 mm across.
   // Z is left at scale 1 so the cap rest height, travel and skirt alignment don't move
   // (stemBB — used for the Z stack — stays valid because only XY changes). Computed once
   // and reused for every switch placement.
@@ -656,10 +656,12 @@ export function buildClicker(
     const zb = bodyBottomZ;
     const { p, dir } = edgePointAt(bodyFootprint, kc.angleDeg ?? 90);
 
-    // Apply offsetMm by shifting the base point p along the tangent vector (perpendicular to dir)
+    // Combine independent tangent and radial offsets at the angle-derived edge anchor.
     const tangent: [number, number] = [-dir[1], dir[0]];
-    const px = p[0] + tangent[0] * (kc.offsetMm ?? 0);
-    const py = p[1] + tangent[1] * (kc.offsetMm ?? 0);
+    const tangentOffset = kc.offsetMm ?? 0;
+    const radialOffset = kc.radialOffsetMm ?? 0;
+    const px = p[0] + tangent[0] * tangentOffset + dir[0] * radialOffset;
+    const py = p[1] + tangent[1] * tangentOffset + dir[1] * radialOffset;
 
     // Apply the body's own edge ('clickerBase') bevel to a keychain add-on footprint
     // so it reads as one piece with the body, not a bolt-on.

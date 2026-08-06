@@ -65,7 +65,14 @@ const store = createStore<UiState>({
   switches: [{ x: 0, y: 0, rotation: 0 }],
   activeSwitchIndex: 0,
   smoothing: 0.1,
-  keychain: { enabled: false, style: 'loop', angleDeg: 90, holeDiameterMm: 5.2, offsetMm: 0 },
+  keychain: {
+    enabled: false,
+    style: 'loop',
+    angleDeg: 90,
+    holeDiameterMm: 5.2,
+    offsetMm: 0,
+    radialOffsetMm: 0,
+  },
   removeBg: true,
   view: 'exploded',
   showSwitch: true,
@@ -168,7 +175,7 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
     debouncedRebuild();
   },
   onStemTolStep: (delta) => {
-    // "Switch stem" fit = XY scale offset on the cap's keycap-mount stem (0.2 mm steps).
+    // "Switch stem" fit = XY scale offset on the cap's keycap-mount stem (0.1 mm steps).
     // + loosens (opens the cross socket), − tightens. 0 = as authored.
     const next = Math.round(Math.max(-1.0, Math.min(1.0, store.get().stemTolerance + delta)) * 10) / 10;
     store.set({ stemTolerance: next });
@@ -249,6 +256,14 @@ const ui = createUi(sidebarLeft, sidebarRight, statusEl, {
     const kc = store.get().keychain;
     const offsetMm = Math.round(Math.max(-15.0, Math.min(15.0, (kc.offsetMm ?? 0) + deltaMm)) * 10) / 10;
     store.set({ keychain: { ...kc, offsetMm } });
+    debouncedRebuild();
+  },
+  onKeychainRadialOffset: (deltaMm) => {
+    const kc = store.get().keychain;
+    const radialOffsetMm = Math.round(
+      Math.max(-5.0, Math.min(10.0, (kc.radialOffsetMm ?? 0) + deltaMm)) * 10,
+    ) / 10;
+    store.set({ keychain: { ...kc, radialOffsetMm } });
     debouncedRebuild();
   },
   onSmoothing: (v) => {
@@ -1196,8 +1211,15 @@ async function loadProject(file: File) {
       activeSwitchIndex: 0,
       // v3 stores a keychain object; older projects had a boolean (or nothing).
       keychain: set.keychain && typeof set.keychain === 'object'
-        ? { offsetMm: 0, ...set.keychain }
-        : { enabled: set.keychain === true, style: 'loop', angleDeg: 90, holeDiameterMm: 5.2, offsetMm: 0 },
+        ? { offsetMm: 0, radialOffsetMm: 0, ...set.keychain }
+        : {
+            enabled: set.keychain === true,
+            style: 'loop',
+            angleDeg: 90,
+            holeDiameterMm: 5.2,
+            offsetMm: 0,
+            radialOffsetMm: 0,
+          },
       smoothing: set.smoothing ?? store.get().smoothing,
       removeBg: set.removeBg ?? store.get().removeBg,
       currentIconName: currentIconName || 'circle',

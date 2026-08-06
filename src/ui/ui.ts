@@ -100,6 +100,8 @@ export interface UiCallbacks {
   onKeychainSize(deltaMm: number): void;
   /** Slide the keychain attachment along the body edge by delta mm. */
   onKeychainOffset(deltaMm: number): void;
+  /** Move the keychain attachment toward or away from the body edge by delta mm. */
+  onKeychainRadialOffset(deltaMm: number): void;
   onRemoveBg(on: boolean): void;
   onView(mode: ViewMode): void;
   onShowSwitch(on: boolean): void;
@@ -312,6 +314,16 @@ export function createUi(
             </div>
             <div class="prow-stacked">
               <div class="prow-header">
+                <label>In / out offset ${tip('Moves the keychain toward or away from the clicker body.')}</label>
+              </div>
+              <div class="tol-stepper" id="keychainRadialOffsetStepper">
+                <button class="btn" id="keychainRadialOffsetMinus" type="button" aria-label="Move keychain inward">−</button>
+                <span class="tol-val" id="keychainRadialOffsetVal">0.0 mm</span>
+                <button class="btn" id="keychainRadialOffsetPlus" type="button" aria-label="Move keychain outward">+</button>
+              </div>
+            </div>
+            <div class="prow-stacked">
+              <div class="prow-header">
                 <label>Hole size ${tip('Diameter of the ring hole — size it for a keyring, cord, or carabiner.')}</label>
               </div>
               <div class="tol-stepper" id="keychainSizeStepper">
@@ -383,7 +395,7 @@ export function createUi(
         </div>
         <div class="prow-stacked">
           <div class="prow-header">
-            <label>Switch stem (top part) tolerance ${tip('Scales the stem under the top part that grips your MX switch. If the stem is too tight to push onto the switch, press + to loosen it; press − for a firmer grip. Adjusts in 0.2 mm steps.')}</label>
+            <label>Switch stem (top part) tolerance ${tip('Scales the stem under the top part that grips your MX switch. If the stem is too tight to push onto the switch, press + to loosen it; press − for a firmer grip. Adjusts in 0.1 mm steps.')}</label>
           </div>
           <div class="tol-stepper" id="stemTolStepper">
             <button class="btn" id="stemTolMinus" type="button" aria-label="Tighter stem">−</button>
@@ -1023,8 +1035,8 @@ export function createUi(
 
   // The stem fit remains a 0-based stepper because it is an offset from the
   // authored keycap-mount geometry, unlike the absolute clearance sliders above.
-  $('stemTolMinus').addEventListener('click', () => cb.onStemTolStep(-0.2));
-  $('stemTolPlus').addEventListener('click', () => cb.onStemTolStep(0.2));
+  $('stemTolMinus').addEventListener('click', () => cb.onStemTolStep(-0.1));
+  $('stemTolPlus').addEventListener('click', () => cb.onStemTolStep(0.1));
 
   // --- Switch D-pad: arrows nudge one step; top corners rotate; center resets. ---
   const SWITCH_STEP = 1; // mm per click
@@ -1065,6 +1077,8 @@ export function createUi(
   $('keychainRotPlus').addEventListener('click', () => cb.onKeychainRotate(15));
   $('keychainOffsetMinus').addEventListener('click', () => cb.onKeychainOffset(-1.0));
   $('keychainOffsetPlus').addEventListener('click', () => cb.onKeychainOffset(1.0));
+  $('keychainRadialOffsetMinus').addEventListener('click', () => cb.onKeychainRadialOffset(-1.0));
+  $('keychainRadialOffsetPlus').addEventListener('click', () => cb.onKeychainRadialOffset(1.0));
   $('keychainSizeMinus').addEventListener('click', () => cb.onKeychainSize(-0.4));
   $('keychainSizePlus').addEventListener('click', () => cb.onKeychainSize(0.4));
 
@@ -1815,6 +1829,8 @@ export function createUi(
     if (kcAngleEl) kcAngleEl.textContent = `${Math.round((((kc.angleDeg % 360) + 360) % 360))}°`;
     const kcOffsetEl = document.getElementById('keychainOffsetVal');
     if (kcOffsetEl) kcOffsetEl.textContent = `${(kc.offsetMm ?? 0.0).toFixed(1)} mm`;
+    const kcRadialOffsetEl = document.getElementById('keychainRadialOffsetVal');
+    if (kcRadialOffsetEl) kcRadialOffsetEl.textContent = `${(kc.radialOffsetMm ?? 0.0).toFixed(1)} mm`;
     const kcSizeEl = document.getElementById('keychainSizeVal');
     if (kcSizeEl) kcSizeEl.textContent = `${kc.holeDiameterMm.toFixed(1)} mm`;
     $<HTMLInputElement>('removebg').checked = state.removeBg;

@@ -81,6 +81,9 @@ export interface KeychainParams {
   /** Lateral offset along the body edge tangent, mm. Positive = counter-clockwise
    *  shift from the angle-derived anchor, negative = clockwise. Default 0. */
   offsetMm: number;
+  /** Radial offset from the body edge, mm. Positive = outward from the body,
+   *  negative = inward toward the body. Default 0. */
+  radialOffsetMm: number;
 }
 
 /** Bambu-style image preprocessing. Adjustment values are multipliers, 1 = neutral. */
